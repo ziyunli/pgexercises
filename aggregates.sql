@@ -91,3 +91,54 @@ FROM cd.facilities f
          JOIN cd.bookings b ON b.facid = f.facid
 GROUP BY f.facid
 ORDER BY revenue;
+
+-- Find facilities with a total revenue less than 1000
+-- Question
+-- Produce a list of facilities with a total revenue less than 1000. Produce an output table consisting of facility name and revenue, sorted by revenue. Remember that there's a different cost for guests and members!
+SELECT f.name, SUM((CASE WHEN b.memid = 0 THEN f.guestcost ELSE f.membercost END) * slots) AS revenue
+FROM cd.facilities f
+         JOIN cd.bookings b ON f.facid = b.facid
+GROUP BY f.facid
+HAVING SUM((CASE WHEN b.memid = 0 THEN f.guestcost ELSE f.membercost END) * slots) < 1000
+ORDER BY revenue;
+
+-- Postgres, unlike some other RDBMSs like SQL Server and MySQL, doesn't support putting column names in the HAVING clause.
+SELECT name, revenue
+FROM (SELECT facs.name, sum(CASE WHEN memid = 0 THEN slots * facs.guestcost ELSE slots * membercost END) AS revenue
+      FROM cd.bookings bks
+               INNER JOIN cd.facilities facs ON bks.facid = facs.facid
+      GROUP BY facs.name) AS agg
+WHERE revenue < 1000
+ORDER BY revenue;
+
+-- Output the facility id that has the highest number of slots booked
+-- Question
+-- Output the facility id that has the highest number of slots booked. For bonus points, try a version without a LIMIT clause. This version will probably look messy!
+SELECT f.facid, SUM(b.slots) AS "Total Slots"
+FROM cd.facilities f
+         JOIN cd.bookings b ON f.facid = b.facid
+GROUP BY f.facid
+ORDER BY SUM(b.slots) DESC
+LIMIT 1;
+
+SELECT facid, sum(slots) AS totalslots
+FROM cd.bookings
+GROUP BY facid
+HAVING sum(slots) =
+       (SELECT max(sum2.totalslots) FROM (SELECT sum(slots) AS totalslots FROM cd.bookings GROUP BY facid) AS sum2);
+
+WITH sum AS (SELECT facid, sum(slots) AS totalslots FROM cd.bookings GROUP BY facid)
+SELECT facid, totalslots
+FROM sum
+WHERE totalslots = (SELECT max(totalslots) FROM sum);
+
+-- List the total slots booked per facility per month, part 2
+-- Question
+-- Produce a list of the total number of slots booked per facility per month in the year of 2012. In this version, include output rows containing totals for all months per facility, and a total for all months for all facilities. The output table should consist of facility id, month and slots, sorted by the id and month. When calculating the aggregated values for all months and all facids, return null values in the month and facid columns.
+WITH per_month AS (SELECT f.facid, extract(MONTH FROM b.starttime) AS month, sum(b.slots) AS slots
+                   FROM cd.facilities f
+                            JOIN cd.bookings b ON f.facid = b.facid
+                   GROUP BY f.facid, month
+                   ORDER BY f.facid)
+SELECT *
+FROM per_month;
